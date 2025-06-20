@@ -179,30 +179,6 @@ crontab -e
 
 ---
 
-## 🛠 Optional Ideas
-
-| Feature | Description |
-|--------|-------------|
-| Media streaming | Add Jellyfin to stream videos from `/mnt/usbdrive/media` |
-| Aria2 Web UI     | Add AriaNG frontend |
-| GDrive sync      | Auto-upload completed files to Google Drive |
-| Telegram bot     | Trigger downloads via chat commands |
-| Auto cleanup     | Cron job to remove old .torrent files or move completed |
-
----
-
-## 📤 GitHub Publishing (optional)
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/youruser/yourrepo.git
-git push -u origin main
-```
-
----
-
 ## 🧾 License
 
 MIT — Feel free to fork, adapt, or redistribute.
