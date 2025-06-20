@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VPN Status</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f0f0; padding: 20px; }
+    .box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .status { font-size: 1.5em; color: green; }
+    .error { font-size: 1.5em; color: red; }
+    .meta { font-size: 0.9em; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>VPN Status</h2>
+    <div id="status">Checking...</div>
+    <div id="meta" class="meta"></div>
+  </div>
+  <script>
+    fetch('/mnt/usbdrive/status/status.json')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("status").textContent = data.status;
+        document.getElementById("status").className = data.connected ? "status" : "error";
+        document.getElementById("meta").textContent = "User: " + data.user + " | Last Checked: " + data.time;
+      });
+  </script>
+</body>
+</html>
