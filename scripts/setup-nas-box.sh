@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-USB_PATH="/mnt/usbdrive"
+USB_PATH="/mnt/usb"
 
 echo "🔄 Updating system..."
 sudo apt update && sudo apt upgrade -y
