@@ -43,9 +43,19 @@ sudo systemctl daemon-reexec
 sudo systemctl enable qbittorrent
 sudo systemctl start qbittorrent
 
-echo "admin Installing FileBrowser..."
-curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-sudo mv filebrowser /usr/local/bin/filebrowser
+echo "🗂 Installing FileBrowser..."
+curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh -o get_filebrowser.sh
+chmod +x get_filebrowser.sh
+./get_filebrowser.sh
+
+FOUND_FB=$(find . -type f -name "filebrowser" -perm -111 | head -n 1)
+if [ -n "$FOUND_FB" ]; then
+  sudo mv "$FOUND_FB" /usr/local/bin/filebrowser
+  sudo chmod +x /usr/local/bin/filebrowser
+else
+  echo "❌ Could not find FileBrowser binary after install"
+  exit 1
+fi
 
 filebrowser config init --database $USB_PATH/.filebrowser/filebrowser.db
 filebrowser users add admin password --database $USB_PATH/.filebrowser/filebrowser.db
