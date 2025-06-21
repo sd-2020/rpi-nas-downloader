@@ -15,7 +15,7 @@ sudo mount -a || true
 
 echo "📂 Creating directories..."
 mkdir -p $USB_PATH/{torrents,direct_downloads,media,.filebrowser}
-sudo chown -R pi:pi $USB_PATH
+sudo chown -R admin:admin $USB_PATH
 
 echo "📦 Installing qBittorrent as a systemd service..."
 cat <<EOF | sudo tee /etc/systemd/system/qbittorrent.service
@@ -24,7 +24,7 @@ Description=qBittorrent-nox
 After=network.target
 
 [Service]
-User=pi
+User=admin
 ExecStart=/usr/bin/qbittorrent-nox
 Restart=on-failure
 
@@ -36,12 +36,12 @@ sudo systemctl daemon-reexec
 sudo systemctl enable qbittorrent
 sudo systemctl start qbittorrent
 
-echo "🗂 Installing FileBrowser..."
+echo "admin Installing FileBrowser..."
 curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
 sudo mv filebrowser /usr/local/bin/filebrowser
 
 filebrowser config init --database $USB_PATH/.filebrowser/filebrowser.db
-filebrowser users add pi password --database $USB_PATH/.filebrowser/filebrowser.db
+filebrowser users add admin password --database $USB_PATH/.filebrowser/filebrowser.db
 
 cat <<EOF | sudo tee /etc/systemd/system/filebrowser.service
 [Unit]
@@ -51,7 +51,7 @@ After=network.target
 [Service]
 ExecStart=/usr/local/bin/filebrowser -r $USB_PATH -d $USB_PATH/.filebrowser/filebrowser.db
 Restart=always
-User=pi
+User=admin
 
 [Install]
 WantedBy=multi-user.target
@@ -73,8 +73,8 @@ cat <<EOL | sudo tee -a /etc/samba/smb.conf
    public = no
 EOL
 
-echo "🔐 Set Samba password for 'pi':"
-sudo smbpasswd -a pi
+echo "🔐 Set Samba password for 'admin':"
+sudo smbpasswd -a admin
 sudo systemctl restart smbd
 
 echo "⬇️ Setting up FileBrowser aria2 plugin..."
