@@ -1,34 +1,145 @@
-# Usage Guide
+#!/bin/bash
+set -e
 
-## Setup
+USB_PATH="/mnt/usb"
 
-Run the main setup script:
+echo "🔄 Updating system..."
+sudo apt update && sudo apt upgrade -y
 
-```bash
-chmod +x scripts/setup-nas-box.sh
-./scripts/setup-nas-box.sh
-```
+echo "💽 Installing dependencies..."
+sudo apt install -y exfat-fuse exfatprogs curl unzip git composer nginx php php-fpm php-xml php-curl qbittorrent-nox aria2 samba
 
-After setup, login to:
-- Windscribe: `windscribe login && windscribe connect`
-- Tailscale: `sudo tailscale up`
+echo "📁 Mounting USB if not mounted..."
+sudo mkdir -p $USB_PATH
+sudo mount -a || true
 
-## Direct Download via FileBrowser
+echo "📂 Creating directories..."
+mkdir -p $USB_PATH/{torrents,direct_downloads,media,.filebrowser}
 
-Install plugin in FileBrowser:
+FSTYPE=$(findmnt -n -o FSTYPE $USB_PATH || echo "")
+if [[ "$FSTYPE" != "exfat" && "$FSTYPE" != "vfat" ]]; then
+  echo "🔐 Setting ownership to admin:admin..."
+  sudo chown -R admin:admin $USB_PATH
+else
+  echo "⚠️ Skipping chown — $FSTYPE does not support file ownership"
+fi
 
-- Go to Settings → Plugins
-- Add new plugin:
-  - Name: Download via Link
-  - Command: /mnt/usbdrive/.filebrowser/download.sh
-  - Arguments: {{ prompt }}
+echo "📦 Installing qBittorrent service..."
+cat <<EOF | sudo tee /etc/systemd/system/qbittorrent.service
+[Unit]
+Description=qBittorrent-nox
+After=network.target
 
-## Windscribe Failover
+[Service]
+User=admin
+ExecStart=/usr/bin/qbittorrent-nox
+Restart=on-failure
 
-Automatically switches to the next credential if the current one is out of quota or fails to connect.
+[Install]
+WantedBy=multi-user.target
+EOF
 
-Add to crontab:
+sudo systemctl daemon-reexec
+sudo systemctl enable qbittorrent
+sudo systemctl start qbittorrent
 
-```bash
-@reboot /mnt/usbdrive/scripts/rotate-windscribe.sh
-```
+echo "🗂 Installing FileBrowser..."
+curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh -o get_filebrowser.sh
+chmod +x get_filebrowser.sh
+./get_filebrowser.sh
+
+FOUND_FB=$(find . -type f -name "filebrowser" -perm -111 | head -n 1)
+if [ -n "$FOUND_FB" ]; then
+  sudo mv "$FOUND_FB" /usr/local/bin/filebrowser
+  sudo chmod +x /usr/local/bin/filebrowser
+else
+  echo "❌ Could not find FileBrowser binary after install"
+  exit 1
+fi
+
+filebrowser config init --database $USB_PATH/.filebrowser/filebrowser.db
+filebrowser users add admin password --database $USB_PATH/.filebrowser/filebrowser.db
+
+cat <<EOF | sudo tee /etc/systemd/system/filebrowser.service
+[Unit]
+Description=File Browser
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/filebrowser -r $USB_PATH -d $USB_PATH/.filebrowser/filebrowser.db
+Restart=always
+User=admin
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reexec
+sudo systemctl enable filebrowser
+sudo systemctl start filebrowser
+
+echo "🌐 Setting up Samba for Windows sharing..."
+cat <<EOL | sudo tee -a /etc/samba/smb.conf
+
+[Downloads]
+   path = $USB_PATH
+   browseable = yes
+   writeable = yes
+   create mask = 0777
+   directory mask = 0777
+   public = no
+EOL
+
+echo "🔐 Set Samba password for 'admin':"
+sudo smbpasswd -a admin
+sudo systemctl restart smbd
+
+echo "⬇️ Setting up FileBrowser aria2 plugin..."
+cat <<EOF | tee $USB_PATH/.filebrowser/download.sh
+#!/bin/bash
+LINK="$1"
+aria2c -d "$USB_PATH/direct_downloads" "$LINK"
+EOF
+
+chmod +x $USB_PATH/.filebrowser/download.sh
+
+echo "🌐 Installing Heimdall dashboard..."
+cd /var/www
+sudo git clone https://github.com/linuxserver/Heimdall.git heimdall
+cd heimdall
+sudo composer install --no-dev
+sudo chown -R www-data:www-data /var/www/heimdall
+
+sudo bash -c 'cat > /etc/nginx/sites-available/heimdall <<EOF
+server {
+    listen 88 default_server;
+    root /var/www/heimdall/public;
+
+    index index.php;
+    server_name _;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOF'
+
+sudo ln -s /etc/nginx/sites-available/heimdall /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo systemctl reload nginx
+sudo systemctl enable nginx php8.2-fpm
+
+echo "✅ Setup complete! Access your services:"
+echo "➡️ qBittorrent: http://<tailscale-ip>:8080"
+echo "➡️ FileBrowser: http://<tailscale-ip>:8081"
+echo "➡️ Heimdall: http://<tailscale-ip>:88"
+echo "➡️ SMB Share: \\<pi-ip>\Downloads"
