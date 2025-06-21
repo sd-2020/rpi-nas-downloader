@@ -15,7 +15,14 @@ sudo mount -a || true
 
 echo "📂 Creating directories..."
 mkdir -p $USB_PATH/{torrents,direct_downloads,media,.filebrowser}
-sudo chown -R admin:admin $USB_PATH
+
+# Skip chown if exFAT or FAT32
+if ! grep -qi 'exfat\|vfat' <<< "$(findmnt -n -o FSTYPE $USB_PATH)"; then
+  echo "🔐 Setting ownership to admin:admin..."
+  sudo chown -R admin:admin $USB_PATH
+else
+  echo "⚠️ Skipping chown — filesystem does not support ownership (likely exFAT/FAT32)"
+fi
 
 echo "📦 Installing qBittorrent as a systemd service..."
 cat <<EOF | sudo tee /etc/systemd/system/qbittorrent.service
